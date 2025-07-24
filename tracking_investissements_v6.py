@@ -240,7 +240,7 @@ def display_2fa_interface(username: str, user_email: str) -> bool:
 
 # ET REMPLACEZ LA SECTION PAR :
 
-    elif st.session_state.get('authentication_status') is True:
+elif st.session_state.get('authentication_status') is True:
     
     # === NOUVEAU : VÉRIFICATION 2FA ===
     username = st.session_state.get('username')
