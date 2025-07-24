@@ -308,7 +308,7 @@ L'équipe TLB INVESTOR
 
 def display_2fa_page(username: str, user_email: str, user_name: str, config: Dict) -> bool:
     """
-    Page complète d'authentification 2FA pour TLB INVESTOR - VERSION OPTIMISÉE
+    Page complète d'authentification 2FA pour TLB INVESTOR - VERSION ANTI-DOUBLON
     
     Args:
         username: nom d'utilisateur
@@ -329,50 +329,57 @@ def display_2fa_page(username: str, user_email: str, user_name: str, config: Dic
     # Nettoyage automatique des codes expirés
     tfa_manager.cleanup_expired_codes()
     
-    # === AMÉLIORATION : CLÉ UNIQUE BASÉE SUR LA SESSION STREAMLIT ===
-    # Cela évite les envois multiples lors des reruns
-    if 'tlb_2fa_session_id' not in st.session_state:
-        import uuid
-        st.session_state.tlb_2fa_session_id = str(uuid.uuid4())
+    # === SOLUTION ANTI-DOUBLON : CLÉ BASÉE SUR L'UTILISATEUR + TIMESTAMP DE CONNEXION ===
+    # Créer une clé unique pour cette session de connexion 2FA
+    session_2fa_key = f"tlb_2fa_session_{username}"
     
-    session_key = f"tlb_2fa_{username}_{st.session_state.tlb_2fa_session_id}"
+    # Vérifier si on a déjà une session 2FA active pour cet utilisateur
+    if session_2fa_key not in st.session_state:
+        # Première fois - créer la session avec timestamp
+        import time
+        connection_timestamp = int(time.time())
+        st.session_state[session_2fa_key] = {
+            'connection_time': connection_timestamp,
+            'code_sent': False,
+            'code_sent_time': None
+        }
+    
+    session_2fa_data = st.session_state[session_2fa_key]
     
     # Interface utilisateur COMPACTE
     st.markdown("## 🔐 Authentification sécurisée")
     st.markdown(f"**Bonjour {user_name}** - Accès à votre portfolio TLB INVESTOR")
     
-    # === ENVOI AUTOMATIQUE DU CODE (UNE SEULE FOIS PAR SESSION) ===
-    if session_key not in st.session_state:
+    # === ENVOI AUTOMATIQUE DU CODE (UNE SEULE FOIS PAR SESSION DE CONNEXION) ===
+    if not session_2fa_data['code_sent']:
         with st.spinner("📤 Envoi du code de sécurité..."):
             success, code, error = tfa_manager.send_code_by_email(username, user_email, user_name)
             
             if success:
-                st.session_state[session_key] = {
-                    'code_sent': True,
-                    'code_sent_time': time.time()
-                }
+                # Marquer le code comme envoyé pour cette session
+                st.session_state[session_2fa_key]['code_sent'] = True
+                st.session_state[session_2fa_key]['code_sent_time'] = time.time()
+                
                 st.success(f"✅ Code de 6 chiffres envoyé à **{user_email}**")
                 # Afficher le code pour les tests
                 if st.session_state.get('username') in ['pbarennes', 'test_user']:
                     st.info(f"🧪 **Code de test :** {code}")
-                # IMPORTANT: Ne pas faire st.rerun() ici pour éviter les doublons
+                # PAS de st.rerun() ici - c'est la cause des doublons !
             else:
                 st.error(f"❌ Erreur lors de l'envoi : {error}")
                 st.markdown(f"💬 **Contactez le support :** {tfa_manager.support_email}")
                 return False
     
-    # === VÉRIFIER QUE LE CODE A BIEN ÉTÉ ENVOYÉ ===
-    if session_key not in st.session_state:
-        st.error("❌ Erreur de session. Rafraîchissez la page.")
+    # === VÉRIFIER QU'ON A UNE SESSION VALIDE ===
+    if not session_2fa_data['code_sent'] or not session_2fa_data['code_sent_time']:
+        st.error("❌ Erreur de session 2FA. Rafraîchissez la page.")
         return False
-    
-    session_data = st.session_state[session_key]
     
     # === INTERFACE COMPACTE TEMPS RESTANT + RENVOYER ===
     col_timer, col_resend = st.columns([2, 1])
     
     with col_timer:
-        elapsed = time.time() - session_data['code_sent_time']
+        elapsed = time.time() - session_2fa_data['code_sent_time']
         remaining = max(0, 300 - elapsed)  # 5 minutes = 300 secondes
         
         if remaining > 0:
@@ -389,7 +396,7 @@ def display_2fa_page(username: str, user_email: str, user_name: str, config: Dic
                 
                 if success:
                     # Mettre à jour SEULEMENT le timestamp
-                    st.session_state[session_key]['code_sent_time'] = time.time()
+                    st.session_state[session_2fa_key]['code_sent_time'] = time.time()
                     st.success("✅ Nouveau code envoyé !")
                     # Afficher le code pour les tests
                     if st.session_state.get('username') in ['pbarennes', 'test_user']:
@@ -429,11 +436,9 @@ def display_2fa_page(username: str, user_email: str, user_name: str, config: Dic
             
             if result['success']:
                 st.success(result['message'])
-                # Nettoyer les variables de session
-                if session_key in st.session_state:
-                    del st.session_state[session_key]
-                if 'tlb_2fa_session_id' in st.session_state:
-                    del st.session_state.tlb_2fa_session_id
+                # Nettoyer la session 2FA complètement
+                if session_2fa_key in st.session_state:
+                    del st.session_state[session_2fa_key]
                 # Marquer la 2FA comme validée
                 st.session_state.tlb_2fa_verified = True
                 time.sleep(1)
@@ -441,11 +446,9 @@ def display_2fa_page(username: str, user_email: str, user_name: str, config: Dic
             else:
                 st.error(result['message'])
                 if result['reason'] in ['expired', 'too_many_attempts']:
-                    # Code expiré, nettoyer et permettre un nouveau renvoi
-                    if session_key in st.session_state:
-                        del st.session_state[session_key]
-                    if 'tlb_2fa_session_id' in st.session_state:
-                        del st.session_state.tlb_2fa_session_id
+                    # Code expiré, nettoyer et permettre un nouveau code
+                    if session_2fa_key in st.session_state:
+                        del st.session_state[session_2fa_key]
                     st.info("💡 Génération d'un nouveau code...")
                     time.sleep(1)
                     st.rerun()
