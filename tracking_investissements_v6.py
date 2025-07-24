@@ -757,7 +757,7 @@ else:
         from modules.tab4_imbalances    import display_tab4_imbalances
         from modules.tab5_commentaires  import display_tab5_commentaires
         from modules.tab6_dividendes     import display_tab6_dividendes
-        from modules.tab9_projections    import display_tab_projections
+        #from modules.tab9_projections    import display_tab_projections
         from modules.tab7_evenements    import display_tab7_evenements
         from modules.tab8_analyse       import display_tab8_analyse
 
@@ -767,7 +767,7 @@ else:
         with tabs[3]: display_tab4_imbalances()
         with tabs[4]: display_tab5_commentaires()
         with tabs[5]: display_tab6_dividendes()
-        with tabs[6]: display_tab_projections()
+        #with tabs[6]: display_tab_projections()
         with tabs[7]: display_tab7_evenements()
         with tabs[8]: display_tab8_analyse()
 
