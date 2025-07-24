@@ -308,7 +308,7 @@ L'équipe TLB INVESTOR
 
 def display_2fa_page(username: str, user_email: str, user_name: str, config: Dict) -> bool:
     """
-    Page complète d'authentification 2FA pour TLB INVESTOR - VERSION ANTI-DOUBLON
+    Page complète d'authentification 2FA pour TLB INVESTOR - VERSION CORRIGÉE
     
     Args:
         username: nom d'utilisateur
@@ -336,7 +336,6 @@ def display_2fa_page(username: str, user_email: str, user_name: str, config: Dic
     # Vérifier si on a déjà une session 2FA active pour cet utilisateur
     if session_2fa_key not in st.session_state:
         # Première fois - créer la session avec timestamp
-        import time
         connection_timestamp = int(time.time())
         st.session_state[session_2fa_key] = {
             'connection_time': connection_timestamp,
