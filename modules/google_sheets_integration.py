@@ -149,13 +149,15 @@ class TLBGoogleSheetsManager:
                     with st.spinner(f"📄 Chargement {sheet_name}..."):
                         df = self.read_sheet_as_csv(sheet_id, gid)
                         
-                        if df is not None:
+                        if df is not None and not df.empty:
+                            # CORRECTION : Nettoyer les données après chargement
+                            df = self.clean_dataframe(df, sheet_name)
                             sheets_data[sheet_name] = df
                             st.success(f"✅ {sheet_name}: {len(df)} lignes chargées")
                         else:
                             # Créer DataFrame vide si la feuille n'existe pas
-                            sheets_data[sheet_name] = pd.DataFrame()
-                            st.info(f"⚪ {sheet_name}: Feuille vide ou inexistante")
+                            sheets_data[sheet_name] = self.create_empty_dataframe(sheet_name)
+                            st.info(f"⚪ {sheet_name}: Feuille vide, structure par défaut créée")
             
             # Vérifier qu'on a au moins les données principales
             if sheets_data.get("Feuil1") is None or sheets_data["Feuil1"].empty:
@@ -187,6 +189,95 @@ class TLBGoogleSheetsManager:
                 
         except Exception as e:
             return False, f"Erreur lors du chargement: {str(e)}"
+    
+    def clean_dataframe(self, df: pd.DataFrame, sheet_name: str) -> pd.DataFrame:
+        """
+        Nettoyer et formater les données selon le type de feuille
+        
+        Args:
+            df: DataFrame à nettoyer
+            sheet_name: nom de la feuille
+            
+        Returns:
+            DataFrame nettoyé
+        """
+        try:
+            df_cleaned = df.copy()
+            
+            if sheet_name == "Feuil1":  # Données principales
+                # Conversion des colonnes numériques
+                numeric_columns = ['Quantity', 'Purchase price', 'Purchase value', 'Current price', 'Current value']
+                for col in numeric_columns:
+                    if col in df_cleaned.columns:
+                        df_cleaned[col] = pd.to_numeric(df_cleaned[col], errors='coerce').fillna(0)
+                
+                # Conversion des dates
+                if 'Date' in df_cleaned.columns:
+                    df_cleaned['Date'] = pd.to_datetime(df_cleaned['Date'], errors='coerce')
+                
+                # Nettoyer les colonnes texte
+                text_columns = ['Ticker', 'Type', 'Secteur', 'Category', 'Entreprise', 'Compte', 'Units']
+                for col in text_columns:
+                    if col in df_cleaned.columns:
+                        df_cleaned[col] = df_cleaned[col].astype(str).fillna('')
+                        
+            elif sheet_name == "Feuil2":  # Limites
+                if 'Valeur seuils' in df_cleaned.columns:
+                    df_cleaned['Valeur seuils'] = pd.to_numeric(df_cleaned['Valeur seuils'], errors='coerce').fillna(0)
+                    
+            elif sheet_name == "Feuil3":  # Commentaires
+                if 'Date' in df_cleaned.columns:
+                    df_cleaned['Date'] = pd.to_datetime(df_cleaned['Date'], errors='coerce')
+                if 'Date action' in df_cleaned.columns:
+                    df_cleaned['Date action'] = pd.to_datetime(df_cleaned['Date action'], errors='coerce')
+                    
+            elif sheet_name == "Feuil4":  # Dividendes
+                if 'Date paiement' in df_cleaned.columns:
+                    df_cleaned['Date paiement'] = pd.to_datetime(df_cleaned['Date paiement'], errors='coerce')
+                numeric_div_columns = ['Dividende par action', 'Quantité détenue', 'Montant brut (€)', 'Montant net (€)']
+                for col in numeric_div_columns:
+                    if col in df_cleaned.columns:
+                        df_cleaned[col] = pd.to_numeric(df_cleaned[col], errors='coerce').fillna(0)
+                        
+            elif sheet_name == "Feuil5":  # Événements
+                if 'Date' in df_cleaned.columns:
+                    df_cleaned['Date'] = pd.to_datetime(df_cleaned['Date'], errors='coerce')
+            
+            return df_cleaned
+            
+        except Exception as e:
+            st.warning(f"Erreur nettoyage {sheet_name}: {e}")
+            return df
+    
+    def create_empty_dataframe(self, sheet_name: str) -> pd.DataFrame:
+        """
+        Créer un DataFrame vide avec la structure correcte selon le type de feuille
+        
+        Args:
+            sheet_name: nom de la feuille
+            
+        Returns:
+            DataFrame vide avec les bonnes colonnes
+        """
+        if sheet_name == "Feuil1":
+            return pd.DataFrame(columns=[
+                "Date", "Compte", "Ticker", "Type", "Secteur", "Category", 
+                "Entreprise", "Quantity", "Purchase price", "Purchase value", 
+                "Current price", "Current value", "Units"
+            ])
+        elif sheet_name == "Feuil2":
+            return pd.DataFrame(columns=["Variable1", "Variable2", "Valeur seuils"])
+        elif sheet_name == "Feuil3":
+            return pd.DataFrame(columns=["Date", "Commentaire", "Date action", "Actions"])
+        elif sheet_name == "Feuil4":
+            return pd.DataFrame(columns=[
+                "Date paiement", "Ticker", "Entreprise", "Dividende par action", 
+                "Quantité détenue", "Montant brut (€)", "Montant net (€)", "Devise", "Type"
+            ])
+        elif sheet_name == "Feuil5":
+            return pd.DataFrame(columns=["Date", "Event"])
+        else:
+            return pd.DataFrame()
     
     def save_to_local_excel(self, username: str) -> Tuple[bool, str]:
         """
@@ -293,26 +384,59 @@ def display_google_sheets_loader():
                         st.sidebar.error("❌ " + message)
                         
                         # Aide au dépannage
-                        with st.sidebar.expander("💡 Aide au dépannage", expanded=False):
+                        with st.sidebar.expander("💡 Aide au dépannage", expanded=True):
                             st.markdown("""
                             **🔍 Problèmes courants :**
                             
-                            **Accès refusé (403) :**
-                            - Vérifiez que le Google Sheet est partagé
-                            - Le lien doit être accessible en lecture
-                            - Format: "Toute personne disposant du lien peut consulter"
+                            **❌ Erreur HTTP 400/403 - Accès refusé :**
+                            1. **Partagez votre Google Sheet** :
+                               - Ouvrez le Google Sheet
+                               - Clic sur "Partager" (coin supérieur droit)
+                               - Clic sur "Modifier l'accès"
+                               - Sélectionner **"Toute personne disposant du lien"**
+                               - Niveau d'accès : **"Lecteur"** (lecture seule)
+                               - Cliquer "Terminé"
                             
-                            **Sheet non trouvé (404) :**
-                            - Vérifiez l'URL dans votre config.yaml
-                            - L'URL doit être complète et valide
+                            2. **Vérifiez l'URL** dans config.yaml :
+                            ```
+                            google_sheets_url: "https://docs.google.com/spreadsheets/d/VOTRE_ID/edit#gid=0"
+                            ```
                             
-                            **Format attendu :**
+                            **❌ Sheet non trouvé (404) :**
+                            - L'URL doit être complète et correcte
+                            - Vérifiez que le Google Sheet existe
+                            
+                            **✅ Format URL correct :**
                             ```
-                            https://docs.google.com/spreadsheets/d/SHEET_ID/edit#gid=0
+                            https://docs.google.com/spreadsheets/d/1abc123def456/edit#gid=0
                             ```
+                            
+                            **📊 Structure attendue :**
+                            - **Feuil1** : Données portefeuille (obligatoire)
+                            - **Feuil2** : Limites (optionnel)
+                            - **Feuil3** : Commentaires (optionnel)
+                            - **Feuil4** : Dividendes (optionnel)
+                            - **Feuil5** : Événements (optionnel)
                             
                             **💬 Support :** pierre.barennes@gmail.com
                             """)
+                            
+                            # Test de connectivité
+                            if st.button("🧪 Tester l'accès au Google Sheet", key="test_sheets_access"):
+                                test_result = test_google_sheets_access(google_sheets_url)
+                                if test_result["success"]:
+                                    st.success(f"✅ Accès OK ! {test_result['rows']} lignes, {test_result['columns']} colonnes")
+                                    st.info(f"Sheet ID détecté : {test_result['sheet_id']}")
+                                else:
+                                    st.error(f"❌ Test échoué : {test_result['error']}")
+                                    
+                                    # Instructions spécifiques selon le type d'erreur
+                                    if "403" in test_result['error'] or "Accès refusé" in test_result['error']:
+                                        st.warning("🔧 **Action requise :** Partagez le Google Sheet en lecture publique")
+                                    elif "404" in test_result['error']:
+                                        st.warning("🔧 **Action requise :** Vérifiez l'URL du Google Sheet")
+                                    elif "URL invalide" in test_result['error']:
+                                        st.warning("🔧 **Action requise :** Corrigez l'URL dans config.yaml")
             else:
                 # Afficher comment configurer Google Sheets
                 st.sidebar.markdown("---")
