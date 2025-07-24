@@ -1,3 +1,6 @@
+# === 1. AJOUTEZ CES IMPORTS EN HAUT DE VOTRE MAIN.PY ===
+
+import streamlit as st
 import smtplib
 import random
 import string
@@ -7,6 +10,8 @@ import os
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
+
+# === 2. COPIEZ CETTE CLASSE DANS VOTRE MAIN.PY (APRÈS LES IMPORTS) ===
 
 class Simple2FA:
     """
@@ -20,17 +25,15 @@ class Simple2FA:
         # 📧 CONFIGURATION EMAIL GMAIL
         self.smtp_server = "smtp.gmail.com"
         self.smtp_port = 587
-        self.sender_email = "pierre.barennes@gmail.com"  # ← CHANGEZ ICI
-        self.sender_password = "yzzv lozh txvk alyv"  # ← MOT DE PASSE D'APPLICATION GMAIL
+        self.sender_email = "pierre.barennes@gmail.com"  # Votre Gmail
+        self.sender_password = "yzzv lozh txvk alyv"     # Votre mot de passe d'app
     
     def generate_code(self) -> str:
         """Générer un code aléatoire de 6 chiffres"""
         return ''.join(random.choices(string.digits, k=6))
     
     def send_code_by_email(self, username: str, user_email: str) -> bool:
-        """
-        Envoyer le code de 6 chiffres par email
-        """
+        """Envoyer le code de 6 chiffres par email"""
         try:
             # Générer le code
             code = self.generate_code()
@@ -50,7 +53,7 @@ class Simple2FA:
             msg['To'] = user_email
             msg['Subject'] = "🔐 Code de connexion TLB INVESTOR"
             
-            # Corps de l'email simple et clair
+            # Corps de l'email
             body = f"""
 Bonjour {username},
 
@@ -74,20 +77,16 @@ TLB INVESTOR
                 server.login(self.sender_email, self.sender_password)
                 server.send_message(msg)
             
-            print(f"✅ Code {code} envoyé à {user_email}")  # Debug
             return True
             
         except Exception as e:
-            print(f"❌ Erreur envoi email : {e}")  # Debug
+            st.error(f"❌ Erreur envoi email : {e}")
             return False
     
     def verify_code(self, username: str, entered_code: str) -> dict:
-        """
-        Vérifier le code saisi par l'utilisateur
-        """
+        """Vérifier le code saisi par l'utilisateur"""
         codes_data = self._load_codes()
         
-        # Vérifier si un code existe pour cet utilisateur
         if username not in codes_data:
             return {
                 'success': False, 
@@ -100,7 +99,6 @@ TLB INVESTOR
         
         # Vérifier l'expiration (5 minutes)
         if current_time - user_data['timestamp'] > self.code_expiry:
-            # Code expiré, le supprimer
             del codes_data[username]
             self._save_codes(codes_data)
             return {
@@ -111,7 +109,6 @@ TLB INVESTOR
         
         # Vérifier le code
         if entered_code.strip() == user_data['code']:
-            # Code correct ! Le supprimer pour qu'il ne soit plus utilisable
             del codes_data[username]
             self._save_codes(codes_data)
             return {
@@ -144,7 +141,7 @@ TLB INVESTOR
         except:
             pass
 
-# === INTERFACE STREAMLIT ===
+# === 3. COPIEZ CETTE FONCTION DANS VOTRE MAIN.PY ===
 
 def display_2fa_interface(username: str, user_email: str) -> bool:
     """
@@ -170,8 +167,7 @@ def display_2fa_interface(username: str, user_email: str) -> bool:
             with st.spinner("📤 Envoi du code en cours..."):
                 if tfa_manager.send_code_by_email(username, user_email):
                     st.success("✅ Code envoyé ! Vérifiez votre boîte email.")
-                    if 'code_sent_time' not in st.session_state:
-                        st.session_state.code_sent_time = time.time()
+                    st.session_state.code_sent_time = time.time()
                     st.rerun()
                 else:
                     st.error("❌ Erreur lors de l'envoi. Vérifiez la configuration email.")
@@ -189,7 +185,7 @@ def display_2fa_interface(username: str, user_email: str) -> bool:
     # === ÉTAPE 2 : VÉRIFIER LE CODE ===
     st.markdown("---")
     
-    # Afficher le temps restant si un code a été envoyé
+    # Afficher le temps restant
     if 'code_sent_time' in st.session_state:
         elapsed = time.time() - st.session_state.code_sent_time
         remaining = max(0, 300 - elapsed)  # 5 minutes = 300 secondes
@@ -237,15 +233,16 @@ def display_2fa_interface(username: str, user_email: str) -> bool:
     
     return False  # ❌ PAS ENCORE VALIDÉ
 
-# === INTÉGRATION DANS MAIN.PY ===
+# === 4. MODIFIEZ VOTRE SECTION D'AUTHENTIFICATION DANS MAIN.PY ===
 
-def integrate_2fa_in_main():
-    """
-    Code à intégrer dans main.py après l'authentification username/password
-    """
+# TROUVEZ CETTE LIGNE DANS VOTRE MAIN.PY :
+# elif st.session_state.get('authentication_status') is True:
+
+# ET REMPLACEZ LA SECTION PAR :
+
+elif st.session_state.get('authentication_status') is True:
     
-    # === APRÈS : elif st.session_state.get('authentication_status') is True:
-    
+    # === NOUVEAU : VÉRIFICATION 2FA ===
     username = st.session_state.get('username')
     
     # Récupérer l'email depuis config.yaml
@@ -258,7 +255,7 @@ def integrate_2fa_in_main():
         st.error("❌ Erreur de configuration utilisateur.")
         st.stop()
     
-    # === VÉRIFICATION 2FA ===
+    # Vérification 2FA
     if 'tfa_verified' not in st.session_state:
         st.session_state.tfa_verified = False
     
@@ -270,21 +267,60 @@ def integrate_2fa_in_main():
         else:
             st.stop()  # Arrêter jusqu'à validation 2FA
     
-# === TEST EN CONSOLE ===
-def test_email_sending():
+    # === VOTRE CODE EXISTANT CONTINUE ICI ===
+    # (Tout le reste de votre code après l'authentification)
+    
+    # === VÉRIFICATION DE SÉCURITÉ DE SESSION (votre code existant) ===
+    if not check_session_security():
+        st.stop()
+    
+    # === BOUTON DE DÉCONNEXION MODIFIÉ ===
+    with st.sidebar:
+        st.markdown("---")
+        if st.button('🚪 Déconnexion', key='secure_logout', help='Déconnexion avec effacement de toutes les données'):
+            # NOUVEAU : Nettoyer la vérification 2FA
+            if 'tfa_verified' in st.session_state:
+                del st.session_state.tfa_verified
+            if 'code_sent_time' in st.session_state:
+                del st.session_state.code_sent_time
+            
+            # Votre fonction de déconnexion existante
+            force_logout()
+    
+    # ... VOTRE CODE EXISTANT CONTINUE NORMALEMENT ...
+
+# === 5. MODIFIEZ VOTRE CONFIG.YAML ===
+
+"""
+Ajoutez l'email pour chaque utilisateur :
+
+credentials:
+  usernames:
+    pbarennes:
+      email: pierre.barennes@gmail.com  # ← AJOUTEZ CETTE LIGNE
+      failed_login_attempts: 0
+      first_name: Pierre
+      last_name: Barennes
+      logged_in: false
+      password: $2b$12$iTkIu3XiK/Iy1QTdsjzLxuyU8DRB7tDoKGvO/OFc1eqR.nLqNquF.
+"""
+
+# === 6. FONCTION DE TEST (OPTIONNELLE) ===
+
+def test_2fa_email():
     """
-    Fonction de test pour vérifier l'envoi d'email
+    Test rapide pour vérifier que l'envoi d'email fonctionne
     """
     tfa = Simple2FA()
-    
-    # Test d'envoi
-    success = tfa.send_code_by_email("test_user", "destinataire@example.com")
-    print(f"Test envoi : {'✅ Succès' if success else '❌ Échec'}")
-    
-    # Afficher le code généré (pour debug)
-    codes = tfa._load_codes()
-    if "test_user" in codes:
-        print(f"Code généré : {codes['test_user']['code']}")
+    success = tfa.send_code_by_email("test", "pierre.barennes@gmail.com")
+    if success:
+        print("✅ Email envoyé avec succès !")
+        # Afficher le code généré pour le test
+        codes = tfa._load_codes()
+        if "test" in codes:
+            print(f"Code généré : {codes['test']['code']}")
+    else:
+        print("❌ Erreur lors de l'envoi email")
 
-# Décommentez pour tester :
-test_email_sending()
+# Pour tester, décommentez cette ligne :
+# test_2fa_email()
