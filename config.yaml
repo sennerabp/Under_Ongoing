@@ -22,7 +22,7 @@ credentials:
       last_name: Barennes
       logged_in: false
       password: $2b$12$iTkIu3XiK/Iy1QTdsjzLxuyU8DRB7tDoKGvO/OFc1eqR.nLqNquF. #PB
-      google_sheets_url: "https://docs.google.com/spreadsheets/d/1wWvB0pA_XqZ_toI6GKxmyg_3fhCjo-fr-4AHDY8UrVQ/edit?gid=0#gid=0"
+      google_sheets_url: "https://docs.google.com/spreadsheets/d/1wWvB0pA_XqZ_toI6GKxmyg_3fhCjo-fr-4AHDY8UrVQ/edit"
       access_level: "premium"
       skip_2fa: false  # 2FA REQUIS pour cet utilisateur
       
