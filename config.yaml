@@ -1,0 +1,26 @@
+cookie:
+  expiry_days: 30
+  key: some_signature_key
+  name: some_cookie_name
+credentials:
+  usernames:
+    pbarennes:
+      email: pierre.barennes@gmail.com
+      failed_login_attempts: 0
+      first_name: Pierre
+      last_name: Barennes
+      logged_in: false
+      password: $2b$12$iTkIu3XiK/Iy1QTdsjzLxuyU8DRB7tDoKGvO/OFc1eqR.nLqNquF. #PB
+      google_sheets_url: "https://docs.google.com/spreadsheets/d/1wWvB0pA_XqZ_toI6GKxmyg_3fhCjo-fr-4AHDY8UrVQ/edit?gid=0#gid=0"
+      access_level: "premium"
+    
+    tlibert:
+      email: contact.thomastlb@gmail.com
+      failed_login_attempts: 0
+      first_name: Thomas
+      last_name: Libert
+      logged_in: false
+      password: $2b$12$TF5l5irijTPpoJuFhNBhX.LhI51xS4ehLMcqo1eo4V/pbxnyjl.5C
+      #google_sheets_url: "https://docs.google.com/spreadsheets/d/1wWvB0pA_XqZ_toI6GKxmyg_3fhCjo-fr-4AHDY8UrVQ/edit?gid=0#gid=0"
+      #access_level: "premium"
+
