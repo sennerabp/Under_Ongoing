@@ -308,7 +308,7 @@ L'équipe TLB INVESTOR
 
 def display_2fa_page(username: str, user_email: str, user_name: str, config: Dict) -> bool:
     """
-    Page complète d'authentification 2FA pour TLB INVESTOR
+    Page complète d'authentification 2FA pour TLB INVESTOR - VERSION OPTIMISÉE
     
     Args:
         username: nom d'utilisateur
@@ -329,73 +329,36 @@ def display_2fa_page(username: str, user_email: str, user_name: str, config: Dic
     # Nettoyage automatique des codes expirés
     tfa_manager.cleanup_expired_codes()
     
-    # Interface utilisateur avec design TLB
-    st.markdown("""
-        <style>
-        .tfa-container {
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 2rem;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-        }
-        .tfa-header {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-        .tfa-icon {
-            font-size: 4rem;
-            margin-bottom: 1rem;
-        }
-        </style>
-    """, unsafe_allow_html=True)
+    # === AMÉLIORATION : CLÉ UNIQUE BASÉE SUR LA SESSION STREAMLIT ===
+    # Cela évite les envois multiples lors des reruns
+    if 'tlb_2fa_session_id' not in st.session_state:
+        import uuid
+        st.session_state.tlb_2fa_session_id = str(uuid.uuid4())
     
-    # En-tête de la page 2FA
-    st.markdown(f"""
-        <div class="tfa-container">
-            <div class="tfa-header">
-                <div class="tfa-icon">🔐</div>
-                <h2>Authentification sécurisée</h2>
-                <p>Bonjour <strong>{user_name}</strong>, pour accéder à votre portfolio TLB INVESTOR</p>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+    session_key = f"tlb_2fa_{username}_{st.session_state.tlb_2fa_session_id}"
     
-    st.markdown("### 📧 Vérification par email")
-    st.info(f"Un code de sécurité va être envoyé automatiquement à : **{user_email}**")
+    # Interface utilisateur COMPACTE
+    st.markdown("## 🔐 Authentification sécurisée")
+    st.markdown(f"**Bonjour {user_name}** - Accès à votre portfolio TLB INVESTOR")
     
-    # === CLÉ UNIQUE DE SESSION POUR ÉVITER LES DOUBLONS ===
-    session_key = f"tlb_2fa_{username}_{user_email}"
-    
-    # === ENVOI AUTOMATIQUE DU CODE (UNE SEULE FOIS) ===
+    # === ENVOI AUTOMATIQUE DU CODE (UNE SEULE FOIS PAR SESSION) ===
     if session_key not in st.session_state:
-        with st.spinner("📤 Envoi automatique du code de sécurité..."):
+        with st.spinner("📤 Envoi du code de sécurité..."):
             success, code, error = tfa_manager.send_code_by_email(username, user_email, user_name)
             
             if success:
                 st.session_state[session_key] = {
                     'code_sent': True,
-                    'code_sent_time': time.time(),
-                    'send_count': 1
+                    'code_sent_time': time.time()
                 }
-                st.success(f"✅ Code de 6 chiffres envoyé à {user_email}")
-                # Masquer le code en production - Affiché seulement pour les tests
+                st.success(f"✅ Code de 6 chiffres envoyé à **{user_email}**")
+                # Afficher le code pour les tests
                 if st.session_state.get('username') in ['pbarennes', 'test_user']:
                     st.info(f"🧪 **Code de test :** {code}")
-                st.rerun()
+                # IMPORTANT: Ne pas faire st.rerun() ici pour éviter les doublons
             else:
-                st.error(f"❌ Erreur lors de l'envoi automatique : {error}")
-                
-                # Message d'aide en cas d'erreur
-                st.markdown(f"""
-                    ### 💬 Besoin d'aide ?
-                    
-                    En cas de problème avec l'envoi d'email :
-                    - Vérifiez votre dossier **spam/indésirables**
-                    - Attendez quelques minutes et utilisez "Renvoyer"
-                    - Contactez le support : **{tfa_manager.support_email}**
-                """)
+                st.error(f"❌ Erreur lors de l'envoi : {error}")
+                st.markdown(f"💬 **Contactez le support :** {tfa_manager.support_email}")
                 return False
     
     # === VÉRIFIER QUE LE CODE A BIEN ÉTÉ ENVOYÉ ===
@@ -405,72 +368,57 @@ def display_2fa_page(username: str, user_email: str, user_name: str, config: Dic
     
     session_data = st.session_state[session_key]
     
-    # === AFFICHER LE TEMPS RESTANT ===
-    elapsed = time.time() - session_data['code_sent_time']
-    remaining = max(0, 300 - elapsed)  # 5 minutes = 300 secondes
+    # === INTERFACE COMPACTE TEMPS RESTANT + RENVOYER ===
+    col_timer, col_resend = st.columns([2, 1])
     
-    if remaining > 0:
-        minutes = int(remaining // 60)
-        seconds = int(remaining % 60)
-        st.info(f"⏰ Code valide encore **{minutes}m {seconds}s**")
-    else:
-        st.warning("⏰ Code expiré ! Utilisez le bouton 'Renvoyer' pour un nouveau code.")
-    
-    # === BOUTON RENVOYER (FALLBACK) ===
-    st.markdown("---")
-    col_info, col_resend = st.columns([3, 1])
-    
-    with col_info:
-        st.success(f"✅ Code envoyé ! Vérifiez votre boîte email (et le dossier spam).")
-        st.caption(f"📊 Envois effectués : {session_data.get('send_count', 1)}")
+    with col_timer:
+        elapsed = time.time() - session_data['code_sent_time']
+        remaining = max(0, 300 - elapsed)  # 5 minutes = 300 secondes
+        
+        if remaining > 0:
+            minutes = int(remaining // 60)
+            seconds = int(remaining % 60)
+            st.info(f"⏰ Code valide encore **{minutes}m {seconds}s** - Vérifiez vos emails")
+        else:
+            st.warning("⏰ Code expiré ! Utilisez 'Renvoyer'")
     
     with col_resend:
         if st.button("🔄 Renvoyer", help="Renvoyer un nouveau code", use_container_width=True):
-            with st.spinner("📤 Renvoi en cours..."):
+            with st.spinner("📤 Renvoi..."):
                 success, code, error = tfa_manager.send_code_by_email(username, user_email, user_name)
                 
                 if success:
-                    # Mettre à jour les données de session
-                    st.session_state[session_key] = {
-                        'code_sent': True,
-                        'code_sent_time': time.time(),
-                        'send_count': session_data.get('send_count', 1) + 1
-                    }
+                    # Mettre à jour SEULEMENT le timestamp
+                    st.session_state[session_key]['code_sent_time'] = time.time()
                     st.success("✅ Nouveau code envoyé !")
                     # Afficher le code pour les tests
                     if st.session_state.get('username') in ['pbarennes', 'test_user']:
-                        st.info(f"🧪 **Nouveau code de test :** {code}")
+                        st.info(f"🧪 **Nouveau code :** {code}")
                     st.rerun()
                 else:
-                    st.error(f"❌ Erreur lors du renvoi : {error}")
-                    st.markdown(f"""
-                        **💬 Contactez le support :** {tfa_manager.support_email}
-                        
-                        Précisez votre nom d'utilisateur: **{username}**
-                    """)
+                    st.error(f"❌ Erreur renvoi : {error}")
     
-    # === FORMULAIRE DE VÉRIFICATION ===
+    # === FORMULAIRE DE VÉRIFICATION COMPACT ===
     st.markdown("---")
-    st.markdown("### 🔢 Saisie du code de vérification")
     
     with st.form("tlb_code_verification_form", clear_on_submit=True):
-        # Interface centrée pour la saisie du code
-        col_left, col_center, col_right = st.columns([1, 2, 1])
+        col_input, col_button = st.columns([2, 1])
         
-        with col_center:
+        with col_input:
             code_input = st.text_input(
-                "Code de 6 chiffres reçu par email",
+                "🔢 Code de 6 chiffres",
                 max_chars=6,
                 placeholder="123456",
-                help="Saisissez le code de 6 chiffres reçu dans votre boîte email",
-                label_visibility="visible"
+                help="Code reçu par email"
             )
         
-        verify_button = st.form_submit_button(
-            "✅ Vérifier et accéder au portfolio", 
-            type="primary", 
-            use_container_width=True
-        )
+        with col_button:
+            st.markdown("<br>", unsafe_allow_html=True)  # Alignement vertical
+            verify_button = st.form_submit_button(
+                "✅ Vérifier", 
+                type="primary", 
+                use_container_width=True
+            )
     
     # === TRAITEMENT DE LA VÉRIFICATION ===
     if verify_button and code_input:
@@ -484,6 +432,8 @@ def display_2fa_page(username: str, user_email: str, user_name: str, config: Dic
                 # Nettoyer les variables de session
                 if session_key in st.session_state:
                     del st.session_state[session_key]
+                if 'tlb_2fa_session_id' in st.session_state:
+                    del st.session_state.tlb_2fa_session_id
                 # Marquer la 2FA comme validée
                 st.session_state.tlb_2fa_verified = True
                 time.sleep(1)
@@ -491,30 +441,21 @@ def display_2fa_page(username: str, user_email: str, user_name: str, config: Dic
             else:
                 st.error(result['message'])
                 if result['reason'] in ['expired', 'too_many_attempts']:
-                    # Code expiré ou trop de tentatives, permettre un nouveau renvoi
+                    # Code expiré, nettoyer et permettre un nouveau renvoi
                     if session_key in st.session_state:
                         del st.session_state[session_key]
-                    st.info("💡 L'interface va se réinitialiser pour un nouveau code.")
-                    time.sleep(2)
+                    if 'tlb_2fa_session_id' in st.session_state:
+                        del st.session_state.tlb_2fa_session_id
+                    st.info("💡 Génération d'un nouveau code...")
+                    time.sleep(1)
                     st.rerun()
     
-    # === MESSAGE D'AIDE ===
-    with st.expander("💡 Aide et dépannage", expanded=False):
+    # === MESSAGE D'AIDE COMPACT ===
+    with st.expander("💡 Problème avec le code ?", expanded=False):
         st.markdown(f"""
-        **🔍 Code non reçu ?**
-        - Vérifiez votre dossier **spam/courrier indésirable**
-        - L'email peut prendre quelques minutes à arriver
-        - Utilisez le bouton "Renvoyer" si nécessaire
+        **🔍 Code non reçu ?** Vérifiez le dossier spam et utilisez "Renvoyer"
         
-        **⚠️ Problème persistant ?**
-        - Contactez le support technique : **{tfa_manager.support_email}**
-        - Précisez votre nom d'utilisateur : **{username}**
-        - Décrivez le problème rencontré
-        
-        **🔒 Sécurité**
-        - Ne partagez jamais votre code de vérification
-        - Le code expire automatiquement après 5 minutes
-        - Maximum 5 tentatives par code généré
+        **⚠️ Problème persistant ?** Contactez **{tfa_manager.support_email}** avec votre nom d'utilisateur : **{username}**
         """)
     
     return False  # ❌ PAS ENCORE VALIDÉ
