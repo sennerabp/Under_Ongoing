@@ -591,6 +591,16 @@ elif st.session_state.get('authentication_status') is True:
 
     # === INTERFACE DE CHARGEMENT DE FICHIER (en premier) ===
     st.sidebar.header('📁 Charger les données')
+    
+    # === NOUVEAU : CHARGEMENT GOOGLE SHEETS ===
+    try:
+        from modules.google_sheets_integration import display_google_sheets_loader
+        display_google_sheets_loader()
+    except ImportError as e:
+        st.sidebar.error(f"Module Google Sheets non trouvé: {e}")
+    
+    # === CHARGEMENT FICHIER EXCEL CLASSIQUE ===
+    st.sidebar.markdown("**Ou**")
     uploaded = st.sidebar.file_uploader('Importer un fichier Excel', type=['xlsx'])
 
     # === SECTION SAUVEGARDE (juste après le chargement) ===
