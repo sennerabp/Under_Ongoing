@@ -1,4 +1,4 @@
-# TLB INVESTOR Portfolio Tracking v7 - Avec authentification 2FA intégrée
+# TLB INVESTOR Portfolio Tracking v1.2.0 - Avec authentification 2FA et Google Sheets OAuth2
 
 import streamlit as st
 import pandas as pd
@@ -21,7 +21,7 @@ from streamlit_authenticator.utilities import (
 )
 from modules.yfinance_cache_manager import get_cache_manager
 
-version = '1.1.0 - 2FA'
+version = '1.2.0 - 2FA + Google Sheets OAuth2'
 
 # === FONCTIONS CREATE NEW PORTFOLIO ===
 def create_empty_portfolio(username: str) -> str:
@@ -177,11 +177,14 @@ def display_create_portfolio_button():
     is_authenticated = st.session_state.get("authentication_status", False)
     is_2fa_verified = st.session_state.get("tlb_2fa_verified", False)
     
-    # MODIFICATION : Nouvelle logique pour détecter un fichier chargé
+    # MODIFICATION : Détecter un fichier chargé (Excel ou Google Sheets)
     has_loaded_file = (
-        'input_file_path' in st.session_state and 
-        st.session_state.input_file_path and 
-        os.path.exists(st.session_state.input_file_path)
+        ('input_file_path' in st.session_state and 
+         st.session_state.input_file_path and 
+         (os.path.exists(st.session_state.input_file_path) or 
+          str(st.session_state.input_file_path).startswith('google_sheets_'))) and
+        'df_data' in st.session_state and 
+        not st.session_state.df_data.empty
     )
     
     username = st.session_state.get("username", "user")
@@ -234,7 +237,9 @@ def clear_all_user_data():
         'df_data', 'df_limits', 'df_comments', 'df_dividendes', 'df_events',
         'data_modified', 'input_file_path', 'save_filename', 'uploaded_file',
         'base_filename', 'file_uploaded', 'current_values_updated', 'last_saved_path',
-        'yf_cache', 'user_session_id', 'last_authenticated_user', 'auto_update_done'
+        'yf_cache', 'user_session_id', 'last_authenticated_user', 'auto_update_done',
+        # NOUVEAU : Nettoyer aussi les données Google Sheets
+        'tlb_gs_cache', 'google_auth_code', 'show_google_auth'
     ]
     
     for key in keys_to_clear:
@@ -242,8 +247,11 @@ def clear_all_user_data():
             del st.session_state[key]
     
     # Nettoyer aussi les données 2FA
-    from modules.auth_2fa import cleanup_2fa_session
-    cleanup_2fa_session()
+    try:
+        from modules.auth_2fa import cleanup_2fa_session
+        cleanup_2fa_session()
+    except ImportError:
+        pass
     
     # Nettoyer aussi les fichiers temporaires
     try:
@@ -381,6 +389,18 @@ if 'yf_cache' not in st.session_state:
         'eurusd_rate': {'rate': 1.1, 'timestamp': datetime.now() - timedelta(hours=1)}
     }
 
+# NOUVEAU : Initialisation du cache Google Sheets
+if 'tlb_gs_cache' not in st.session_state:
+    st.session_state.tlb_gs_cache = {
+        'credentials': None,
+        'authenticated': False,
+        'user_sheets': {},
+        'data_cache': {},
+        'last_update': {},
+        'selected_sheet_id': None,
+        'user_profile': None
+    }
+
 # Ensure modules folder is recognized as a package
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), 'modules'))
@@ -471,6 +491,22 @@ st.markdown("""
     .tfa-icon {
         font-size: 4rem;
         margin-bottom: 1rem;
+    }
+    
+    /* NOUVEAU : Styles Google Sheets */
+    .gs-auth-container {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 2rem;
+        border-radius: 12px;
+        color: white;
+        margin: 1rem 0;
+    }
+    .gs-success {
+        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        padding: 1rem;
+        border-radius: 8px;
+        color: white;
+        margin: 0.5rem 0;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -592,19 +628,29 @@ elif st.session_state.get('authentication_status') is True:
     # === INTERFACE DE CHARGEMENT DE FICHIER (en premier) ===
     st.sidebar.header('📁 Charger les données')
     
-    # === NOUVEAU : CHARGEMENT GOOGLE SHEETS ===
+    # === NOUVEAU : INTÉGRATION GOOGLE SHEETS OAUTH2 ===
     try:
-        from modules.google_sheets_integration import display_google_sheets_loader
-        display_google_sheets_loader()
+        from modules.google_sheets_interface import integrate_google_sheets_oauth
+        integrate_google_sheets_oauth()
     except ImportError as e:
-        st.sidebar.error(f"Module Google Sheets non trouvé: {e}")
+        st.sidebar.warning(f"⚠️ Module Google Sheets OAuth2 non trouvé: {e}")
+        st.sidebar.info("Pour activer Google Sheets, installez les dépendances requises")
+    except Exception as e:
+        st.sidebar.error(f"❌ Erreur Google Sheets: {e}")
     
     # === CHARGEMENT FICHIER EXCEL CLASSIQUE ===
-    st.sidebar.markdown("**Ou**")
+    st.sidebar.markdown("**Ou chargement Excel traditionnel :**")
     uploaded = st.sidebar.file_uploader('Importer un fichier Excel', type=['xlsx'])
 
     # === SECTION SAUVEGARDE (juste après le chargement) ===
-    if 'df_data' in st.session_state and 'input_file_path' in st.session_state:
+    # Détecter si on a des données chargées (Excel ou Google Sheets)
+    has_data_loaded = (
+        'df_data' in st.session_state and 
+        'input_file_path' in st.session_state and
+        not st.session_state.df_data.empty
+    )
+    
+    if has_data_loaded:
         st.sidebar.header('💾 Sauvegarde des données')
 
         today_str = datetime.today().strftime('%Y%m%d')
@@ -623,7 +669,7 @@ elif st.session_state.get('authentication_status') is True:
             output.seek(0)
             file_data = output.getvalue()
             if st.sidebar.download_button(
-                label="📥 Télécharger",
+                label="📥 Télécharger Excel",
                 data=file_data,
                 file_name=save_filename,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -650,6 +696,7 @@ for key in ['df_data','df_limits','df_comments','df_dividendes','df_events']:
 if 'data_modified' not in st.session_state:
     st.session_state.data_modified = False
 
+# === TRAITEMENT UPLOAD EXCEL CLASSIQUE ===
 if uploaded:
     base_name = os.path.splitext(uploaded.name)[0]
     base_name = re.sub(r"_\d{8}$", "", base_name)
@@ -681,7 +728,7 @@ if uploaded:
             st.session_state.file_uploaded = uploaded
             st.session_state.current_values_updated = False
             st.session_state.auto_update_done = False  # Reset pour permettre l'actualisation auto
-            st.sidebar.success(f"✅ Fichier chargé")
+            st.sidebar.success(f"✅ Fichier Excel chargé")
             st.session_state.data_modified = False
             
             # === ACTUALISATION AUTOMATIQUE APRÈS CHARGEMENT ===
@@ -690,18 +737,32 @@ if uploaded:
         except Exception as e:
             st.sidebar.error(f"Erreur lors du chargement : {e}")
     else:
-        st.sidebar.success(f"✅ Fichier chargé contenant {len(st.session_state.df_data)} lignes d'investissements")
+        st.sidebar.success(f"✅ Fichier Excel chargé contenant {len(st.session_state.df_data)} lignes d'investissements")
 
 # === INTERFACE PRINCIPALE ===
-# MODIFICATION : Changer la condition pour détecter un fichier chargé
-# Au lieu de vérifier si df_data n'est pas vide, vérifier si on a chargé un fichier
+# MODIFICATION : Détecter un fichier chargé (Excel ou Google Sheets)
 has_portfolio_loaded = (
-    'input_file_path' in st.session_state and 
-    st.session_state.input_file_path and 
-    os.path.exists(st.session_state.input_file_path)
+    ('input_file_path' in st.session_state and 
+     st.session_state.input_file_path and 
+     (os.path.exists(st.session_state.input_file_path) or 
+      str(st.session_state.input_file_path).startswith('google_sheets_'))) and
+    'df_data' in st.session_state and 
+    not st.session_state.df_data.empty
 )
 
-if not has_portfolio_loaded:            
+# === INTERFACE GOOGLE SHEETS PRINCIPALE (si demandée) ===
+if not has_portfolio_loaded and st.session_state.get('show_google_auth', False):
+    try:
+        from modules.google_sheets_interface import TLBGoogleSheetsInterface
+        gs_interface = TLBGoogleSheetsInterface()
+        gs_interface.display_main_interface()
+    except ImportError:
+        st.error("❌ Module Google Sheets non disponible")
+        st.info("Installez les dépendances Google Sheets pour utiliser cette fonctionnalité")
+    except Exception as e:
+        st.error(f"❌ Erreur Google Sheets: {e}")
+
+elif not has_portfolio_loaded:            
     # === MESSAGE D'ACCUEIL (seulement si pas de fichier chargé) ===
     col1, col2, col3 = st.columns([1,2, 1])
 
@@ -709,12 +770,22 @@ if not has_portfolio_loaded:
         st.markdown("""
             ### 🚀 Chargez votre TLB Portfolio
             
-            **Première connexion :**
-            - 🆕 **Créez** un nouveau portfolio vierge (bouton "Create New Portfolio")
+            **Nouvelles options de chargement :**
+            - 🔐 **Google Sheets OAuth2** - Accédez à vos Google Sheets privés (nouveau!)
+            - 🆕 **Créez** un nouveau portfolio vierge (bouton sidebar)
+            - 📥 **Importez** votre fichier Excel existant (sidebar)
             
-            **Portfolio existant :**
-            - 📥 **Importez** votre fichier Portfolio depuis la sidebar (Browse files)
+            **🔐 Google Sheets OAuth2 :**
+            - Vos données restent dans **VOS** Google Sheets privés
+            - Synchronisation bidirectionnelle sécurisée
+            - Accès depuis n'importe quel appareil
+            - Backup automatique Google Drive
         """)
+        
+        # Bouton pour accéder à Google Sheets
+        if st.button("🔐 Accéder à mes Google Sheets", key="main_google_sheets_btn", type="primary"):
+            st.session_state['show_google_auth'] = True
+            st.rerun()
         
         # SECTION SÉCURITÉ - Visible uniquement avant chargement des données
         st.markdown("""
@@ -722,6 +793,7 @@ if not has_portfolio_loaded:
             ### 🔒 Sécurité et Confidentialité :
             
             - ✅ **Authentification 2FA** - Double protection par email
+            - ✅ **OAuth2 Google** - Authentification sécurisée Google (nouveau!)
             - ✅ **Traitement local** - Vos données restent dans votre session
             - ✅ **Aucun stockage** permanent sur nos serveurs  
             - ✅ **Export sécurisé** - Fichiers générés à la demande puis supprimés
@@ -729,12 +801,30 @@ if not has_portfolio_loaded:
             - ✅ **Déconnexion automatique** après inactivité
             - 🔒 **Effacement garanti** - Toute déconnexion efface vos données
             
-            💡 **Vos fichiers Excel sont vos données** - nous ne les conservons jamais !
+            💡 **Vos données vous appartiennent** - Excel ou Google Sheets, vous gardez le contrôle !
         """)
 
 else:   
     # === ONGLETS PRINCIPAUX (seulement si fichier chargé) ===
-    st.markdown(f"### 📊 Portfolio chargé : {os.path.basename(st.session_state.input_file_path)}")
+    # Affichage du nom du portfolio avec détection de la source
+    portfolio_source = ""
+    if st.session_state.input_file_path:
+        if str(st.session_state.input_file_path).startswith('google_sheets_'):
+            # Portfolio Google Sheets
+            sheet_id = str(st.session_state.input_file_path).replace('google_sheets_', '')
+            portfolio_source = f"📊 Google Sheets (ID: {sheet_id[:20]}...)"
+            
+            # Afficher le statut de synchronisation
+            has_modifications = st.session_state.get('data_modified', False)
+            if has_modifications:
+                portfolio_source += " ⚠️ Modifié"
+            else:
+                portfolio_source += " ✅ Synchronisé"
+        else:
+            # Portfolio Excel classique
+            portfolio_source = f"📁 {os.path.basename(st.session_state.input_file_path)}"
+    
+    st.markdown(f"### 📊 Portfolio chargé : {portfolio_source}")
     
     # Message pour nouveau portfolio vide
     if st.session_state.df_data.empty:
@@ -744,6 +834,35 @@ else:
         Portfolio vierge prêt à l'emploi - Utilisez l'onglet **"➕ Ajouter un achat"** pour commencer à ajouter vos investissements
         """)
     
+    # NOUVEAU : Affichage des statistiques rapides
+    if not st.session_state.df_data.empty:
+        col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+        
+        with col_stat1:
+            nb_positions = len(st.session_state.df_data)
+            st.metric("🎯 Positions", nb_positions)
+        
+        with col_stat2:
+            nb_tickers = st.session_state.df_data['Ticker'].nunique()
+            st.metric("📊 Titres uniques", nb_tickers)
+        
+        with col_stat3:
+            total_invested = st.session_state.df_data['Purchase value'].sum()
+            st.metric("💰 Investi", f"{total_invested:,.0f} €")
+        
+        with col_stat4:
+            # Calcul rapide de performance si Current value existe
+            if 'Current value' in st.session_state.df_data.columns:
+                current_total = st.session_state.df_data['Current value'].sum()
+                if current_total > 0:
+                    performance = ((current_total - total_invested) / total_invested * 100)
+                    st.metric("📈 Performance", f"{performance:+.1f}%")
+                else:
+                    st.metric("📈 Performance", "À actualiser")
+            else:
+                st.metric("📈 Performance", "À actualiser")
+    
+    # === ONGLETS PRINCIPAUX ===
     tabs = st.tabs([
         '📈 Portefeuille','➕ Ajouter un achat','📊 Répartition dynamique',
         '🎯 Équilibre vs Objectifs','📝 Commentaires','💸 Dividendes',
@@ -768,6 +887,7 @@ else:
         with tabs[4]: display_tab5_commentaires()
         with tabs[5]: display_tab6_dividendes()
         #with tabs[6]: display_tab_projections()
+        with tabs[6]: st.info("🚧 Onglet Projections temporairement désactivé")
         with tabs[7]: display_tab7_evenements()
         with tabs[8]: display_tab8_analyse()
 
