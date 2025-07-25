@@ -29,3 +29,57 @@ gspread-dataframe==3.3.1
 # stripe == 7.8.0
 # sendgrid == 6.10.0
 # redis == 5.0.1
+
+# TLB INVESTOR Requirements - v1.2.0 avec Google Sheets OAuth2
+
+# === CORE STREAMLIT ===
+streamlit>=1.28.0
+
+# === DATA PROCESSING ===
+pandas>=2.0.0
+numpy>=1.24.0
+openpyxl>=3.1.0
+scipy>=1.10.0
+
+# === FINANCIAL DATA ===
+yfinance>=0.2.20
+requests>=2.31.0
+
+# === VISUALIZATION ===
+plotly>=5.15.0
+matplotlib>=3.7.0
+
+# === AUTHENTICATION & SECURITY ===
+streamlit-authenticator>=0.4.2
+bcrypt==3.1.7
+captcha==0.5.0
+cryptography==42.0.5
+PyJWT==2.3.0
+PyYAML==5.3.1
+extra-streamlit-components==0.1.70
+
+# === CALENDAR & UI ===
+streamlit_calendar>=0.8.0
+
+# === NOUVEAU : GOOGLE SHEETS OAUTH2 ===
+# Core Google Auth
+google-auth>=2.23.4
+google-auth-oauthlib>=1.1.0
+google-auth-httplib2>=0.1.1
+
+# Google APIs
+googleapiclient>=1.7.11
+google-api-python-client>=2.100.0
+
+# Google Sheets Integration
+gspread>=5.12.0
+gspread-dataframe>=3.3.1
+
+# === OPTIONAL : GOOGLE CLOUD (si nécessaire) ===
+# google-cloud-storage>=2.10.0  # Uniquement si stockage cloud requis
+# google-cloud-secret-manager>=2.16.0  # Uniquement si secrets cloud requis
+
+# === DEVELOPMENT & TESTING ===
+# pytest>=7.4.0  # Pour les tests
+# black>=23.0.0   # Pour le formatage de code
+# flake8>=6.0.0   # Pour le linting
