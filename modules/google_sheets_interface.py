@@ -86,7 +86,7 @@ class TLBGoogleSheetsInterface:
         
         with col2:
             # Bouton d'authentification
-            if st.button("🔐 S'authentifier avec Google", key="google_auth_btn", type="primary"):
+            if st.button("🔐 S'authentifier avec Google", key="main_google_auth_btn", type="primary"):
                 success, message = self.manager.authenticate_user()
                 
                 if success:
@@ -351,7 +351,7 @@ class TLBGoogleSheetsInterface:
         if not st.session_state.tlb_gs_cache['authenticated']:
             st.sidebar.markdown("**🔐 Étape 1: Authentification**")
             
-            if st.sidebar.button("🔐 Se connecter à Google", key="sidebar_google_auth"):
+            if st.sidebar.button("🔐 Se connecter à Google", key="sidebar_google_auth_btn"):
                 # Rediriger vers l'interface principale
                 st.session_state['show_google_auth'] = True
                 st.info("👆 Utilisez l'interface principale pour vous authentifier à Google")
