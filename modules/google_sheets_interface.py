@@ -42,7 +42,7 @@ class TLBGoogleSheetsInterface:
                 ```toml
                 GOOGLE_CLIENT_ID = "327885215877-8f30ie53tnh9fncrrr4uf9k8orf9vl5v.apps.googleusercontent.com"
                 GOOGLE_CLIENT_SECRET = "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"
-                GOOGLE_REDIRECT_URI = "https://trackinginvestissementsv6py-7vgkqtycr4geqctogpryqc.streamlit.app/"
+                GOOGLE_REDIRECT_URI = "https://trackinginvestissementsv6py-7vgkqtycr4geqctogpryqc.streamlit.app"
                 ```
                 """)
                 return False
