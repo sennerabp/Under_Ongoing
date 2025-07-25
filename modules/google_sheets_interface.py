@@ -40,9 +40,9 @@ class TLBGoogleSheetsInterface:
                 st.info("""
                 **Configuration requise dans .streamlit/secrets.toml :**
                 ```toml
-                GOOGLE_CLIENT_ID = "votre_client_id.apps.googleusercontent.com"
-                GOOGLE_CLIENT_SECRET = "votre_client_secret"
-                GOOGLE_REDIRECT_URI = "urn:ietf:wg:oauth:2.0:oob"
+                GOOGLE_CLIENT_ID = "327885215877-8f30ie53tnh9fncrrr4uf9k8orf9vl5v.apps.googleusercontent.com"
+                GOOGLE_CLIENT_SECRET = "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"
+                GOOGLE_REDIRECT_URI = "https://trackinginvestissementsv6py-7vgkqtycr4geqctogpryqc.streamlit.app/"
                 ```
                 """)
                 return False
