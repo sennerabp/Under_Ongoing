@@ -22,6 +22,8 @@ gspread == 5.12.0
 google-auth == 2.23.4
 google-auth-oauthlib == 1.1.0
 google-auth-httplib2 == 0.2.0
+googleapiclient==1.7.11
+gspread-dataframe==3.3.1
 
 # === OPTIONNEL (pour fonctionnalités futures) ===
 # stripe == 7.8.0
