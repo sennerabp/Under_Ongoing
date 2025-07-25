@@ -22,7 +22,7 @@ gspread == 5.12.0
 google-auth == 2.23.4
 google-auth-oauthlib == 1.1.0
 google-auth-httplib2 == 0.2.0
-googleapiclient==1.7.11
+googleapiclient
 gspread-dataframe==3.3.1
 
 # === OPTIONNEL (pour fonctionnalités futures) ===
@@ -68,7 +68,6 @@ google-auth-oauthlib>=1.1.0
 google-auth-httplib2>=0.1.1
 
 # Google APIs
-googleapiclient>=1.7.11
 google-api-python-client>=2.100.0
 
 # Google Sheets Integration
